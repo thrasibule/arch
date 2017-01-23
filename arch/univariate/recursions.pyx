@@ -264,6 +264,7 @@ def dgarch_recursion_vp(double[:] parameters,
                         double[:] fresids,
                         double[:] sresids,
                         double[:,:] dsigma2,
+                        double[:] sigma2,
                         int p,
                         int o,
                         int q,
@@ -301,17 +302,17 @@ def dgarch_recursion_vp(double[:] parameters,
     cdef Py_ssize_t t
     cdef int i, j, loc
 
-    for i in range(p+o+q):
+    for i in range(1+p+o+q):
         for t in range(nobs):
             if i == 0:
                 dsigma2[t,i] = 1
             else:
                 dsigma2[t,i] = 0
             if i >=1 and i<=p:
-                if (t-1-i) < 0:
+                if t-i < 0:
                     dsigma2[t,i] += backcast
                 else:
-                    dsigma2[t,i] += fresids[t - 1 - i]
+                    dsigma2[t,i] += fresids[t - i]
             loc = p + 1
             for j in range(q):
                 if (t - 1 - j) < 0:
@@ -320,7 +321,7 @@ def dgarch_recursion_vp(double[:] parameters,
                 else:
                     dsigma2[t,i] += parameters[loc] * dsigma2[t - 1 - j,i]
                     if loc == i:
-                        dsigma2[t,i] += dsigma2[t - 1 - j,i]
+                        dsigma2[t,i] += sigma2[t - 1 - j]
                 loc += 1
 
 @cython.boundscheck(False)
