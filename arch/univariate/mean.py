@@ -806,6 +806,9 @@ class ConstantMean(HARX):
         y = self._fit_y if y is None else y
         return y - params
 
+    def dresids(self, params, y=None, regressors=None):
+        return -np.ones(self._fit_y.shape[0])
+
 
 class ZeroMean(HARX):
     """

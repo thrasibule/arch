@@ -187,13 +187,154 @@ def garch_recursion(double[:] parameters,
                 sigma2[t] += parameters[loc] * sigma2[t - 1 - j]
             loc += 1
 
-        if sigma2[t] < var_bounds[t, 0]:
-            sigma2[t] = var_bounds[t, 0]
-        elif sigma2[t] > var_bounds[t, 1]:
-            if sigma2[t] > DBL_MAX:
-                sigma2[t] = var_bounds[t, 1] + 1000
+        # if sigma2[t] < var_bounds[t, 0]:
+        #     sigma2[t] = var_bounds[t, 0]
+        # elif sigma2[t] > var_bounds[t, 1]:
+        #     if sigma2[t] > DBL_MAX:
+        #         sigma2[t] = var_bounds[t, 1] + 1000
+        #     else:
+        #         sigma2[t] = var_bounds[t, 1] + log(sigma2[t] / var_bounds[t, 1])
+
+    return sigma2
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.cdivision(True)
+def dgarch_recursion_mp(double[:] parameters,
+                        double[:] dresids,
+                        double[:] dsigma2,
+                        int p,
+                        int o,
+                        int q,
+                        int nobs,
+                        double dbackcast,
+                        double[:, :] var_bounds):
+    """
+    Compute variance recursion for GARCH and related models
+
+    Parameters
+    ----------
+    parameters : 1-d array, float64
+        Model parameters
+    fresids : 1-d array, float64
+        Absolute value of residuals raised to the power in the model.  For
+        example, in a standard GARCH model, the power is 2.0.
+    sresids : 1-d array, float64
+        Variable containing the sign of the residuals (-1.0, 0.0, 1.0)
+    sigma2 : 1-d array, float64
+        Conditional variances with same shape as resids
+    p : int
+        Number of symmetric innovations in model
+    o : int
+        Number of asymmetric innovations in model
+    q : int
+        Number of lags of the (transformed) variance in the model
+    nobs : int
+        Length of resids
+    backcast : float64
+        Value to use when initializing the recursion
+    var_bounds : 2-d array
+        nobs by 2-element array of upper and lower bounds for conditional
+        transformed variances for each time period
+    """
+
+    cdef Py_ssize_t t
+    cdef int j, loc
+
+    for t in range(nobs):
+        loc = 0
+        dsigma2[t] = 0
+        loc += 1
+        for j in range(p):
+            if (t - 1 - j) < 0:
+                dsigma2[t] += parameters[loc] * dbackcast
             else:
-                sigma2[t] = var_bounds[t, 1] + log(sigma2[t] / var_bounds[t, 1])
+                dsigma2[t] += parameters[loc] * dresids[t - 1 - j]
+            loc += 1
+        for j in range(q):
+            if (t - 1 - j) < 0:
+                dsigma2[t] += parameters[loc] * dbackcast
+            else:
+                dsigma2[t] += parameters[loc] * dsigma2[t - 1 - j]
+            loc += 1
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.cdivision(True)
+def dgarch_recursion_vp(double[:] parameters,
+                        double[:] fresids,
+                        double[:] sresids,
+                        double[:,:] dsigma2,
+                        int p,
+                        int o,
+                        int q,
+                        int nobs,
+                        double backcast,
+                        double[:, :] var_bounds):
+    """
+    Compute variance recursion for GARCH and related models
+
+    Parameters
+    ----------
+    parameters : 1-d array, float64
+        Model parameters
+    fresids : 1-d array, float64
+        Absolute value of residuals raised to the power in the model.  For
+        example, in a standard GARCH model, the power is 2.0.
+    sresids : 1-d array, float64
+        Variable containing the sign of the residuals (-1.0, 0.0, 1.0)
+    sigma2 : 1-d array, float64
+        Conditional variances with same shape as resids
+    p : int
+        Number of symmetric innovations in model
+    o : int
+        Number of asymmetric innovations in model
+    q : int
+        Number of lags of the (transformed) variance in the model
+    nobs : int
+        Length of resids
+    backcast : float64
+        Value to use when initializing the recursion
+    var_bounds : 2-d array
+        nobs by 2-element array of upper and lower bounds for conditional
+        transformed variances for each time period
+    """
+
+    cdef Py_ssize_t t
+    cdef int j, loc
+
+    for i in range(p+o+q):
+        np.zeros(n_params)
+        for t in range(nobs):
+            loc = 0
+            sigma2[t] = parameters[loc]
+            loc += 1
+            for j in range(p):
+                if (t - 1 - j) < 0:
+                    sigma2[t] += parameters[loc] * backcast
+                else:
+                    sigma2[t] += parameters[loc] * fresids[t - 1 - j]
+            loc += 1
+        for j in range(o):
+            if (t - 1 - j) < 0:
+                sigma2[t] += parameters[loc] * 0.5 * backcast
+            else:
+                sigma2[t] += parameters[loc] * fresids[t - 1 - j] * (sresids[t-1-j] < 0)
+            loc += 1
+        for j in range(q):
+            if (t - 1 - j) < 0:
+                sigma2[t] += parameters[loc] * backcast
+            else:
+                sigma2[t] += parameters[loc] * sigma2[t - 1 - j]
+            loc += 1
+
+        # if sigma2[t] < var_bounds[t, 0]:
+        #     sigma2[t] = var_bounds[t, 0]
+        # elif sigma2[t] > var_bounds[t, 1]:
+        #     if sigma2[t] > DBL_MAX:
+        #         sigma2[t] = var_bounds[t, 1] + 1000
+        #     else:
+        #         sigma2[t] = var_bounds[t, 1] + log(sigma2[t] / var_bounds[t, 1])
 
     return sigma2
 

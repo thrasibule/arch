@@ -809,6 +809,18 @@ class GARCH(VolatilityProcess):
 
         return backcast
 
+    def dbackcast(self, resids):
+        """ compute analytic gradient with respect to the mean parameter"""
+        power = self.power
+        tau = min(75, resids.shape[0])
+        w = (0.94 ** arange(tau))
+        w = w / sum(w)
+        if power == 2: ## faster computation
+            dresids = 2 * resids[:tau]
+        else:
+            dresids = power * (abs(resids[:tau]) ** (power-1)) * np.sign(resids[:tau])
+        return -np.inner(dresids, w)
+
     def simulate(self, parameters, nobs, rng, burn=500, initial_value=None):
         p, o, q, power = self.p, self.o, self.q, self.power
         errors = rng(nobs + burn)
