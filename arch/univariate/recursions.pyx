@@ -187,13 +187,13 @@ def garch_recursion(double[:] parameters,
                 sigma2[t] += parameters[loc] * sigma2[t - 1 - j]
             loc += 1
 
-        # if sigma2[t] < var_bounds[t, 0]:
-        #     sigma2[t] = var_bounds[t, 0]
-        # elif sigma2[t] > var_bounds[t, 1]:
-        #     if sigma2[t] > DBL_MAX:
-        #         sigma2[t] = var_bounds[t, 1] + 1000
-        #     else:
-        #         sigma2[t] = var_bounds[t, 1] + log(sigma2[t] / var_bounds[t, 1])
+        if sigma2[t] < var_bounds[t, 0]:
+            sigma2[t] = var_bounds[t, 0]
+        elif sigma2[t] > var_bounds[t, 1]:
+            if sigma2[t] > DBL_MAX:
+                sigma2[t] = var_bounds[t, 1] + 1000
+            else:
+                sigma2[t] = var_bounds[t, 1] + log(sigma2[t] / var_bounds[t, 1])
 
     return sigma2
 
@@ -207,8 +207,7 @@ def dgarch_recursion_mp(double[:] parameters,
                         int o,
                         int q,
                         int nobs,
-                        double dbackcast,
-                        double[:, :] var_bounds):
+                        double dbackcast):
     """
     Compute variance recursion for GARCH and related models
 
@@ -269,8 +268,7 @@ def dgarch_recursion_vp(double[:] parameters,
                         int o,
                         int q,
                         int nobs,
-                        double backcast,
-                        double[:, :] var_bounds):
+                        double backcast):
     """
     Compute variance recursion for GARCH and related models
 
@@ -301,42 +299,29 @@ def dgarch_recursion_vp(double[:] parameters,
     """
 
     cdef Py_ssize_t t
-    cdef int j, loc
+    cdef int i, j, loc
 
     for i in range(p+o+q):
-        np.zeros(n_params)
         for t in range(nobs):
-            loc = 0
-            sigma2[t] = parameters[loc]
-            loc += 1
-            for j in range(p):
-                if (t - 1 - j) < 0:
-                    sigma2[t] += parameters[loc] * backcast
+            if i == 0:
+                dsigma2[t,i] = 1
+            else:
+                dsigma2[t,i] = 0
+            if i >=1 and i<=p:
+                if (t-1-i) < 0:
+                    dsigma2[t,i] += backcast
                 else:
-                    sigma2[t] += parameters[loc] * fresids[t - 1 - j]
-            loc += 1
-        for j in range(o):
-            if (t - 1 - j) < 0:
-                sigma2[t] += parameters[loc] * 0.5 * backcast
-            else:
-                sigma2[t] += parameters[loc] * fresids[t - 1 - j] * (sresids[t-1-j] < 0)
-            loc += 1
-        for j in range(q):
-            if (t - 1 - j) < 0:
-                sigma2[t] += parameters[loc] * backcast
-            else:
-                sigma2[t] += parameters[loc] * sigma2[t - 1 - j]
-            loc += 1
-
-        # if sigma2[t] < var_bounds[t, 0]:
-        #     sigma2[t] = var_bounds[t, 0]
-        # elif sigma2[t] > var_bounds[t, 1]:
-        #     if sigma2[t] > DBL_MAX:
-        #         sigma2[t] = var_bounds[t, 1] + 1000
-        #     else:
-        #         sigma2[t] = var_bounds[t, 1] + log(sigma2[t] / var_bounds[t, 1])
-
-    return sigma2
+                    dsigma2[t,i] += fresids[t - 1 - i]
+            loc = p + 1
+            for j in range(q):
+                if (t - 1 - j) < 0:
+                    if loc == i:
+                        dsigma2[t,i] += backcast
+                else:
+                    dsigma2[t,i] += parameters[loc] * dsigma2[t - 1 - j,i]
+                    if loc == i:
+                        dsigma2[t,i] += dsigma2[t - 1 - j,i]
+                loc += 1
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
