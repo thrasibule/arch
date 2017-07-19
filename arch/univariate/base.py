@@ -506,7 +506,7 @@ class ARCHModel(object):
                           args=args, iter=100, acc=1e-06, iprint=1,
                           full_output=True, epsilon=1.4901161193847656e-08,
                           callback=_callback, disp=disp,
-                          fprime_ieqcons=constraint_arg)
+                          fprime_ieqcons=constraint_grad)
 
         # Check convergence
         imode, smode = xopt[3:]

@@ -239,10 +239,14 @@ class HARX(ARCHModel):
         return html
 
     def resids(self, params, y=None, regressors=None):
-        regressors = self._fit_regressors if y is None else regressors
+        regressors = self._fit_regressors if regressors is None else regressors
         y = self._fit_y if y is None else y
 
         return y - regressors.dot(params)
+
+    def dresids(self, params, y=None, regressors=None):
+        regressors = self._fit_regressors if regressors is None else regressors
+        return - regressors
 
     @cache_readonly
     def num_params(self):
@@ -807,7 +811,8 @@ class ConstantMean(HARX):
         return y - params
 
     def dresids(self, params, y=None, regressors=None):
-        return -np.ones(self._fit_y.shape[0])
+        y = self._fit_y if y is None else y
+        return - np.ones(y.shape[0])
 
 
 class ZeroMean(HARX):
